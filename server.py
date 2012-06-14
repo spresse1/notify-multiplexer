@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-import socket, sys, threading
+import socket, sys, threading, Queue
+from re import split
 
 class message:
-    self.title=None
-    self.text=None
+    title=None
+    text=None
     
     def __init__(self,title, text):
         self.title = title.strip()
@@ -18,8 +19,11 @@ class localListener(threading.Thread):
         self.sock.bind("\0notify-multiplexer")
     
     def run(self):
+        #self.sock.listen(1)
         while True:
-            
+            raw = self.sock.recv(4096)
+            parts = re.split("\n",raw, maxsplit=1)
+            self.queue.add(message(parts[0],parts[1]))
 
 class singleConnSender(threading.Thread):
     def __init__(self,socket,message):
@@ -41,10 +45,10 @@ class allConnsSender(threading.Thread):
             message = queue.get()
             for con in conns:
                 sendT = singleConnSender(con, message)
-                sendT.run()
+                sendT.start()
 
 #set up defaults
-addr = '0.0.0.0'
+addr = ('0.0.0.0', 9012)
 if (len(sys.argv)>1):
     addr = sys.argv[1]
 
@@ -53,6 +57,14 @@ mainSock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 mainSock.bind(addr)
 
 clients=[]
+queue = Queue.Queue()
+
+acs = allConnsSender(queue, clients)
+acs.start()
+
+ll = localListener(queue)
+ll.start()
 
 while True:
     (sock, addr)=mainSock.accept()
+    clients.append(sock)
