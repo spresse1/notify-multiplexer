@@ -1,0 +1,12 @@
+This is a simple way to distribute notifications to many places based o a single source.  Notifications go in the AF_UNIX socket "\0notify-multiplexer".  They look like this:
+
+[Start packet]
+Title line.  Be sure this includes no newlines!
+Text of teh alert.
+this
+may
+include
+newlines
+[end packet]
+
+Documentation on client modules forthcoming
