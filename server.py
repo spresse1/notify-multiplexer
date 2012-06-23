@@ -42,6 +42,7 @@ class singleConnPing(threading.Thread):
         while True:
             read = self.socket.recv(1024)
             if read.strip().upper()[:4] == "PING":
+                print "Ping!"
                 self.socket.sendall("PONG\0\0\0\0\n")
 
 class allConnsSender(threading.Thread):
