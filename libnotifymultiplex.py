@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import socket, re, threading, select
+import socket, re, threading, select, Queue
+from time import sleep
 
 def send(subject, text, image):
     try:
@@ -13,9 +14,15 @@ def send(subject, text, image):
 
 class NotifyMultiplexReciever:
     
-    def __init__(self):
-        self.connected = False
+    def __init__(self, host, port, timeout=60, debug=False):
         self.partial=""
+        self.msgQueue = Queue.Queue()
+        self.conMan = self._connManager(host, port, self.msgQueue, timeout, debug=debug)
+        self.conMan.start()
+        self.debug = debug
+        if self.debug:
+            print "Debugging on; initalized"
+        
     
     def _toDict(self, data):
         pparts = re.split("\0", data[:-2])
@@ -25,92 +32,95 @@ class NotifyMultiplexReciever:
             #mlformed message
             return False
     
-    def connect(self, server, port):
-        self.sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        #self.sock.settimeout(1)
-        #self.sock.setblocking(True)
-        self.server = server
-        self.port = port
-        try:
-            self.sock.connect((server, port))
-            self.connected = True
-            #self.sock.setblocking(False)
-        except socket.error:
-            print "Failed to connect to the server!"
-            return False
-        return True
-    
-    def _ping(self):
-        try:
-            self.sock.sendall("PING\0");
-        except:
-            print "Error sending ping!"
-            return False
-        try:
-            print "_ping"
-            rdata = self.recv_timeout(1024)
-            if rdata[:4].upper()!="PONG":
-                #oops, we pulled in data
-                return rdata
-        except socket.timeout:
-            print "Error reading from server!"
-            return False
-        return True
-    
-    def _checkPing(self):
-        print "Running _checkPing"
-        if self._ping() is False:
-            if self.connect(self.server, self.port) is False:
-                return False
-            print "Successfully reconnected"
-        return True
-    
-    def recv_timeout(self, size, timeout=60):
-        print "using timeout recv"
-        if not self.connected:
-            return None
-        self.sock.setblocking(True)
-        ready = select.select([self.sock],[],[],timeout)
-        print "ready: " + str(ready[0])
-        if ready[0]:
-            data = self.sock.recv(size)
-            if data=="":
-                raise socket.timeout()
-            return data
-        else:
-            raise socket.timeout()
+    class _connManager(threading.Thread):
+        
+        def __init__(self, host, port, queue, timeout=60, debug=False):
+            from uuid import getnode as get_mac
+            threading.Thread.__init__(self)
+            self.host = host
+            self.port = port
+            self.uid = getmac()
+            self.connected = False
+            self.pingWait = False
+            self.daemon = True
+            self.timeout = timeout
+            self.queue = queue
+            self.debug = debug
+            mac = get_mac()
+            if self.debug:
+                print "Initalized"
+        
+        def connect(self):
+            self.sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            if self.debug:
+                print "connecting..."
+            try:
+                self.sock.connect((self.host, self.port))
+                self.sock.sendall("UID:" + self.uid)
+                self.connected = True
+                if self.debug:
+                    print "connected"
+            except socket.error:
+                if self.debug:
+                    print "Failed to (re)connect!"
+                sleep(self.timeout)
+        
+        def run(self):
+            pingwait=False
+            self.connect()
+            while True:
+                reads = select.select([self.sock], [],[], self.timeout)[0]
+                if self.debug:
+                    print "select got something, or timed out"
+                if len(reads)>0:
+                    if self.debug:
+                        print "got something"
+                    pingwait=False
+                    try:
+                        data = self.sock.recv(1024)
+                    except:
+                        if self.debug:
+                            print "Failed to recieve data, reconnecting"
+                        data=""
+                    if (data[:4]!="PONG"):
+                        #insert into queue
+                        self.queue.put(data)
+                    if (data==""):
+                        self.connect()
+                else:
+                    if self.debug:
+                        print "nope, just a timeout"
+                    if pingwait:
+                        self.connect()
+                    #need to wrap this in a try
+                    try:
+                        self.sock.sendall("PING\0\0\0\0")
+                    except:
+                        #this is a fallthrough case and we'll reconnect the next time anyway
+                        if self.debug:
+                            print "Socket sending failed!"
+                    if self.debug:
+                        print "Ping!"
+                    pingwait=True
     
     def recv(self):
-        if not self.connected:
-            return False
         data=""
         if re.match('[^\0]*\0[^\0]*\0[^\0]*\0\0',self.partial) is None:
-            try:
-                print "main loop"
-                data = self.recv_timeout(1024)
-                if data=="":
-                    print "Bombing becasue of null data"
-                    return False
-            except socket.timeout:
-                print "Caught timeout!"
-                pingres = self._checkPing()
-                if pingres is False:
-                    return False
-                elif pingres is not True:
-                    #ideally this means we got back data not equal to "PONG"
-                    data = pingres
-#                except:
-#                    return False
-        #the first is a full packet
-        #we assume we got at least one full packet
-        print re.sub("\0","1",self.partial+data)
+            data = None
+            while data is None:
+                #ugh, busywait.
+                try:
+                    data = self.msgQueue.get(False)
+                except Queue.Empty:
+                    sleep(1)
+        if self.debug:
+            print re.sub("\0","1",self.partial+data)
         packets = re.findall('[^\0]*\0[^\0]*\0[^\0]*\0\0',self.partial+data)
-        print packets
+        if self.debug:
+            print packets
         self.partial = ''.join(packets[1:])
         if len(packets)>0:
             return self._toDict(packets[0])
-        else:
-            return self.recv()
         
 if __name__ == '__main__':
     #lets run some unit tests
@@ -130,9 +140,7 @@ if __name__ == '__main__':
         print "Test 2: Failed"""
     import socket
     
-    sock = NotifyMultiplexReciever()
-    if sock.connect('hawking.pressers.name', 9012) is False:
-        exit(1)
+    sock = NotifyMultiplexReciever('hawking.pressers.name', 9012)
     
     data = True
     while data is not False:

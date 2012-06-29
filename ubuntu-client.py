@@ -13,8 +13,7 @@ def imageConvert(text):
 pynotify.init("notify-multiplexer")
 
 
-sock = libnotifymultiplex.NotifyMultiplexReciever()
-sock.connect('hawking.pressers.name', 9012)
+sock = libnotifymultiplex.NotifyMultiplexReciever('hawking.pressers.name', 9012)
 
 while True:
     data = sock.recv()

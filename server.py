@@ -37,13 +37,16 @@ class singleConnPing(threading.Thread):
         threading.Thread.__init__(self)
         self.socket = socket
         self.daemon = True
+        self.uid = None
     
     def run(self):
         while True:
-            read = self.socket.recv(1024)
-            if read.strip().upper()[:4] == "PING":
-                print "Ping!"
+            read = self.socket.recv(1024).strip()
+            if read.upper()[:4] == "PING":
+                #print "Ping!"
                 self.socket.sendall("PONG\0\0\0\0\n")
+            if read.upper()[:4] == "UID":
+                self.uid = read[4:]
 
 class allConnsSender(threading.Thread):
     def __init__(self,queue,connsList):
@@ -85,7 +88,7 @@ ll.start()
 while True:
     (sock, addr)=mainSock.accept()
     clientsLock.acquire()
-    clients.append(sock)
+    #clients.append(sock)
     scp = singleConnPing(sock)
     scp.start()
     clientsLock.release()
