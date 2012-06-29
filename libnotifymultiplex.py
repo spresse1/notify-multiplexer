@@ -2,6 +2,7 @@
 
 import socket, re, threading, select, Queue
 from time import sleep
+from uuid import getnode as get_mac
 
 def send(subject, text, image):
     try:
@@ -35,18 +36,16 @@ class NotifyMultiplexReciever:
     class _connManager(threading.Thread):
         
         def __init__(self, host, port, queue, timeout=60, debug=False):
-            from uuid import getnode as get_mac
             threading.Thread.__init__(self)
             self.host = host
             self.port = port
-            self.uid = getmac()
+            self.uid = get_mac()
             self.connected = False
             self.pingWait = False
             self.daemon = True
             self.timeout = timeout
             self.queue = queue
             self.debug = debug
-            mac = get_mac()
             if self.debug:
                 print "Initalized"
         
@@ -56,7 +55,7 @@ class NotifyMultiplexReciever:
                 print "connecting..."
             try:
                 self.sock.connect((self.host, self.port))
-                self.sock.sendall("UID:" + self.uid)
+                self.sock.sendall("UID:" + str(self.uid))
                 self.connected = True
                 if self.debug:
                     print "connected"

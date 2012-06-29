@@ -32,12 +32,13 @@ class singleConnSender(threading.Thread):
           #  clients.remove(self.socket)
            # clientsLock.release()
 
-class singleConnPing(threading.Thread):
+class singleConnManager(threading.Thread):
     def __init__(self, socket):
         threading.Thread.__init__(self)
         self.socket = socket
         self.daemon = True
         self.uid = None
+        self.queue = Queue.Queue()
     
     def run(self):
         while True:
@@ -47,6 +48,13 @@ class singleConnPing(threading.Thread):
                 self.socket.sendall("PONG\0\0\0\0\n")
             if read.upper()[:4] == "UID":
                 self.uid = read[4:]
+    
+    def send(self, message):
+        sendT = singleConnSender(self.socket, message)
+        sendT.start()
+        
+    def updateSocket(self, socket):
+        self.socket = socket
 
 class allConnsSender(threading.Thread):
     def __init__(self,queue,connsList):
@@ -60,8 +68,7 @@ class allConnsSender(threading.Thread):
             message = queue.get()
             print sub("\0", "!", message)
             for con in self.conns:
-                sendT = singleConnSender(con, message)
-                sendT.start()
+                con.send(message)
 
 #set up defaults
 addr = ('0.0.0.0', 9012)
@@ -85,10 +92,26 @@ ll = localListener(queue)
 #ll.daemon=True
 ll.start()
 
-while True:
-    (sock, addr)=mainSock.accept()
-    clientsLock.acquire()
-    #clients.append(sock)
-    scp = singleConnPing(sock)
-    scp.start()
-    clientsLock.release()
+try:
+    while True:
+        (sock, addr)=mainSock.accept()
+        clientsLock.acquire()
+        read = sock.recv(1024).strip()
+        if read.upper()[:4] == "UID:":
+            uid = read[4:]
+            found = False
+            for client in clients:
+                if client.uid==uid:
+                    client.updateSocket(sock)
+            if found==False:
+                scp = singleConnManager(sock)
+                scp.start()
+                clients.append(scp)
+        else:
+            #.. noncompliant...
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
+        clientsLock.release()
+except KeyboardInterrupt:
+    mainSock.shutdown(socket.SHUT_RDWR)
+    mainSock.close()
