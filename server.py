@@ -1,7 +1,20 @@
 #!/usr/bin/env python
 
 import socket, sys, threading, Queue
-from re import split, sub
+from re import split, sub, match
+from time import sleep
+
+def delimitedRecv(msocket):
+    #print "Using delimited recv"
+    peek = msocket.recv(1024,socket.MSG_PEEK)
+    msg = match("(.*?[\0]{2,})", peek)
+    #print 'peek is {0}'.format(sub("\0","!",peek))
+    if msg is not None:
+        #print msg.group(0)
+        #print 'msg is {0}'.format(sub("\0","!",msg.group(0)))
+        #this ought to pull exactly the length of the first message....
+        return msocket.recv(len(msg.group(0)))
+    return msocket.recv(1024)
 
 class localListener(threading.Thread):
     def __init__(self,queue):
@@ -14,47 +27,66 @@ class localListener(threading.Thread):
     def run(self):
         #self.sock.listen(1)
         while True:
+            #we dont use delimited recv becasue these dont get processed
             raw = self.sock.recv(4096)
             self.queue.put(raw)
 
 class singleConnSender(threading.Thread):
-    def __init__(self,socket,message):
+    def __init__(self,socket,queue, debug=False, uid=None):
         threading.Thread.__init__(self)
-        #self.daemon = True
-        self.socket = socket
-        self.message = message
-    
-    def run(self):
-        #try:
-        self.socket.sendall(self.message)
-        #except Exception:
-         #   clientsLock.acquire()
-          #  clients.remove(self.socket)
-           # clientsLock.release()
-
-class singleConnManager(threading.Thread):
-    def __init__(self, socket):
-        threading.Thread.__init__(self)
-        self.socket = socket
+        self.debug=debug
+        self.uid = uid
         self.daemon = True
-        self.uid = None
-        self.queue = Queue.Queue()
+        self.socket = socket
+        self.queue = queue
     
     def run(self):
         while True:
-            read = self.socket.recv(1024).strip()
+            try:
+                if len(self.queue)>0:
+                    self.socket.sendall(self.queue[0])
+                    if self.debug and self.uid is not None:
+                        print self.uid + "Successfully sent the message " + sub("\0",
+                                                                 "!",
+                                                                 self.queue.pop(0))
+                else:
+                    sleep(1)
+            except:
+                sleep(1) #nothing to do, we want to retry sending this one
+            
+    def updateSocket(self, socket):
+        self.socket = socket
+
+class singleConnManager(threading.Thread):
+    def __init__(self, socket, uid, debug = False):
+        threading.Thread.__init__(self)
+        self.socket = socket
+        self.daemon = True
+        self.debug = debug
+        self.uid = uid
+        self.queue = []
+        self.socketQueue = []
+        self.sendT = singleConnSender(self.socket, self.queue, debug=True, uid=self.uid)
+        self.sendT.start()
+    
+    def run(self):
+        while True:
+            read = delimitedRecv(self.socket).strip()
             if read.upper()[:4] == "PING":
-                #print "Ping!"
+                if self.debug:
+                    print "{0}: Ping!".format(self.uid)
                 self.socket.sendall("PONG\0\0\0\0\n")
             if read.upper()[:4] == "UID":
+                print "Unreq'd UID: " + read[4:]
                 self.uid = read[4:]
     
     def send(self, message):
-        sendT = singleConnSender(self.socket, message)
-        sendT.start()
+        self.queue.append(message)
         
     def updateSocket(self, socket):
         self.socket = socket
+        self.sendT.updateSocket(socket)
+        
 
 class allConnsSender(threading.Thread):
     def __init__(self,queue,connsList):
@@ -76,9 +108,13 @@ if (len(sys.argv)>1):
     addr = sys.argv[1]
 
 #lets start by setting up our server socket
-mainSock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-mainSock.bind(addr)
-mainSock.listen(1)
+try:
+    mainSock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    mainSock.bind(addr)
+    mainSock.listen(1)
+except socket.error as err:
+    print err
+    exit(1)
 
 clientsLock = threading.Lock()
 clients=[]
@@ -96,15 +132,19 @@ try:
     while True:
         (sock, addr)=mainSock.accept()
         clientsLock.acquire()
-        read = sock.recv(1024).strip()
+        read = delimitedRecv(sock).strip()
         if read.upper()[:4] == "UID:":
             uid = read[4:]
             found = False
             for client in clients:
+                #print "Client UID is " + client.uid
                 if client.uid==uid:
+                    print "Reconnected UID: " + uid
                     client.updateSocket(sock)
+                    found=True
             if found==False:
-                scp = singleConnManager(sock)
+                print "New socket UID not found!: " + uid
+                scp = singleConnManager(sock, uid)
                 scp.start()
                 clients.append(scp)
         else:

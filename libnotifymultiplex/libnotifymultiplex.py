@@ -15,10 +15,10 @@ def send(subject, text, image):
 
 class NotifyMultiplexReciever:
     
-    def __init__(self, host, port, timeout=60, debug=False):
+    def __init__(self, host, port, timeout=60, debug=False, pingOnConnect=False):
         self.partial=""
         self.msgQueue = Queue.Queue()
-        self.conMan = self._connManager(host, port, self.msgQueue, timeout, debug=debug)
+        self.conMan = self._connManager(host, port, self.msgQueue, timeout, pingOnConnect, debug=debug)
         self.conMan.start()
         self.debug = debug
         if self.debug:
@@ -35,7 +35,7 @@ class NotifyMultiplexReciever:
     
     class _connManager(threading.Thread):
         
-        def __init__(self, host, port, queue, timeout=60, debug=False):
+        def __init__(self, host, port, queue, timeout=60, pingOnConnect=False, debug=False):
             threading.Thread.__init__(self)
             self.host = host
             self.port = port
@@ -46,6 +46,7 @@ class NotifyMultiplexReciever:
             self.timeout = timeout
             self.queue = queue
             self.debug = debug
+            self.pingOnConnect = pingOnConnect
             if self.debug:
                 print "Initalized"
         
@@ -55,7 +56,12 @@ class NotifyMultiplexReciever:
                 print "connecting..."
             try:
                 self.sock.connect((self.host, self.port))
-                self.sock.sendall("UID:" + str(self.uid))
+                if self.pingOnConnect:
+                    self.sock.sendall("UID:" + str(self.uid) + "\0\0PING\0\0\0\0")
+                else:
+                    self.sock.sendall("UID:" + str(self.uid) + "\0\0")
+                if self.debug:
+                    print "Sent UID (double-delimited)" + str(self.uid)
                 self.connected = True
                 if self.debug:
                     print "connected"

@@ -1,0 +1,22 @@
+#!/sbin/runscript
+# This script starts and stops the notify-multiplex server
+
+extra_started_commands=""
+
+depend() {
+	need net
+	need logger
+	after iptables
+}
+
+start() {
+	ebegin "Starting notify-multiplex-server"
+	start-stop-daemon -b -m --pidfile /var/run/notify-multiplex-server.pid -- notify-multiplexd
+	eend $? "Failed to start notify-multiplex-server"
+}
+
+stop() {
+	ebegin "Stopping notify-multiplex-server"
+	start-stop-daemon --stop -p /var/run/notify-multiplex-server.pid
+	eend $? "Failed to stop notify-multiplex-server"
+}
