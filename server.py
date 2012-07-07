@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import socket, sys, threading, Queue
+import socket, sys, threading, Queue, ConfigParser
 from re import split, sub, match
 from time import sleep
+from ssl import CERT_REQUIRED, wrap_socket
 
 def delimitedRecv(msocket):
     #print "Using delimited recv"
@@ -102,10 +103,32 @@ class allConnsSender(threading.Thread):
             for con in self.conns:
                 con.send(message)
 
+def fetchConfig(config,section,name, default=None):
+    try:
+        return config.get(section,name).strip()
+    except ConfigParser.NoOptionError:
+        return default
+
 #set up defaults
 addr = ('0.0.0.0', 9012)
+
+#input args:
+# [1] config file, defaults to /etc/notify-multiplexer/notify-multiplexer.conf
+
+conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
+
+try:
+    conffh = open(conf)
+except IOError as e:
+    print e
+    e.printStackTrace()
+    exit(1)
+
 if (len(sys.argv)>1):
-    addr = sys.argv[1]
+    conf = sys.argv[1]
+
+#lets deal with config files
+config = ConfigParser.SafeConfigParser()
 
 #lets start by setting up our server socket
 try:
@@ -113,8 +136,9 @@ try:
     mainSock.bind(addr)
     mainSock.listen(1)
 except socket.error as err:
+    print "Couldnt bind socket!"
     print err
-    exit(1)
+    exit(2)
 
 clientsLock = threading.Lock()
 clients=[]
@@ -130,7 +154,13 @@ ll.start()
 
 try:
     while True:
-        (sock, addr)=mainSock.accept()
+        (inSecSock, addr)=mainSock.accept()
+        sock = wrap_socket(inSecSock,
+                           keyfile=fetchConfig(config, "server", "keyfile", "/etc/notify-multiplexer/server.key"),
+                           certfile=fetchConfig(config, "server", "keyfile", "/etc/notify-multiplexer/server.crt"),
+                           server_side=True,
+                           cert_reqs=CERT_REQUIRED,
+                           )
         clientsLock.acquire()
         read = delimitedRecv(sock).strip()
         if read.upper()[:4] == "UID:":
