@@ -149,11 +149,11 @@ fi
 
 echo "Generating client certificate..."
 read -ep "Name for this certificate: " CERTNAME
-PASSWORD=""
-    while [ `expr length "$PASSWORD"` -lt 4 ]
-    do
-	read -esp "Password for this certificate (will not echo): " PASSWORD
-    done
+#PASSWORD=""
+#while [ `expr length "$PASSWORD"` -lt 4 ]
+#    do
+#	read -esp "Password for this certificate (will not echo): " PASSWORD
+#    done
 #doesnt echo the newline, so add one ourseves
 echo ""
 echo "Now we're going to gather some basic info on who this certificate is for.  Most of it is irrelevent, but some you may want to set.  If a field is used, we explain what for."
@@ -173,7 +173,8 @@ do
     read -ep "Full length name for your client.  This is probably the FQDN, if it has one. This is used by the notify-server to uniquely identify attached clients for e.g. allowing or denying access (required): " COMNAME
 done
 #magic hack so we can specify the password on the command line.  Otherwise openssl tries to read it on stdin
-export PASSWD="$PASSWORD"
+#we use a dummy password during generation, then strip it later
+export PASSWD="dummy"
 echo "We're now building a key. This could take a moment..."
 openssl genrsa -des3 -passout env:PASSWD -out "$CERTNAME.key" $BITS
 echo "Generating certificate signing request"
@@ -192,6 +193,6 @@ Generating final certificate.  You *will* be asked for the password for your ca 
 "
 openssl x509 -req -days $DAYS -in "$CERTNAME.csr" -CA "$CACERTNAME.crt" \
     -CAkey "$CACERTNAME.key" -set_serial 01 -out "$CERTNAME.crt"
-
+openssl rsa -passin env:PASSWD -in "$CERTNAME.key" -out "$CERTNAME.key"
 echo "Done! Enjoy!
 Copy $CERTNAME.crt and $CERTNAME.key to whatever client they will be used on and configure them there."

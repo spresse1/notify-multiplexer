@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import socket, sys, threading, queue, configparser
 from re import split, sub, match
 from time import sleep
-from ssl import CERT_REQUIRED, wrap_socket
+import ssl
 
 def delimitedRecv(msocket):
     #print "Using delimited recv"
@@ -103,10 +103,50 @@ class allConnsSender(threading.Thread):
             for con in self.conns:
                 con.send(message)
 
+class setupSecureSocket(threading.Thread):
+    """
+    Wraps openssl's initalization procedure, since openssl is dumb and
+    terminates the process"""
+    def __init__(self, socket):
+        threading.Thread.__init__(self)
+        self.socket = socket
+    
+    def run(self):
+        try:
+            sock = context.wrap_socket(self.socket,
+                           server_side=True,
+                           )
+        except Exception as e:
+            print(e.strerror)
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+            exit(4)
+        clientsLock.acquire()
+        read = delimitedRecv(sock).strip()
+        if read.upper()[:4] == "UID:":
+            uid = read[4:]
+            found = False
+            for client in clients:
+                #print "Client UID is " + client.uid
+                if client.uid==uid:
+                    print("Reconnected UID: " + uid)
+                    client.updateSocket(sock)
+                    found=True
+            if found==False:
+                print("New socket UID not found!: " + uid)
+                scp = singleConnManager(sock, uid)
+                scp.start()
+                clients.append(scp)
+        else:
+            #.. noncompliant...
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
+        clientsLock.release()
+
 def fetchConfig(config,section,name, default=None):
     try:
         return config.get(section,name).strip()
-    except configparser.NoOptionError:
+    except (configparser.NoOptionError, configparser.NoSectionError):
         return default
 
 #set up defaults
@@ -117,15 +157,16 @@ addr = ('0.0.0.0', 9012)
 
 conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
 
+if (len(sys.argv)>1):
+    conf = sys.argv[1]
+
 try:
     conffh = open(conf)
 except IOError as e:
-    print(e)
-    e.printStackTrace()
+    print("Issues loading config file: " + conf + ": " + repr(e.strerror) +
+          ", bailing.")
+    #e.printStackTrace()
     exit(1)
-
-if (len(sys.argv)>1):
-    conf = sys.argv[1]
 
 #lets deal with config files
 config = configparser.SafeConfigParser()
@@ -152,36 +193,49 @@ ll = localListener(queue)
 #ll.daemon=True
 ll.start()
 
+#set up the SSL context, yay!
+context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+keyfile=fetchConfig(config, "server", "pubkey", "/etc/notify-multiplexer/server.key")
+certfile=fetchConfig(config, "server", "privkey", "/etc/notify-multiplexer/server.crt")
+cafile=fetchConfig(config, "general", "cacertificate", "/etc/notify-multiplexer/ca.crt")
+try:
+    context.load_cert_chain(keyfile=keyfile, certfile=certfile)
+except (IOError) as e:
+    if e.errno==2:
+        if e.filename is not None:
+            print("Couldnt find the file %s." % (e.filename))
+        else:
+            print("Couldnt find the server keys.  Youve set them to %s and %s. \
+If you need to generate them, use the make_certs.sh script.  If you have \
+already generated them under a different name, you need to set the pubkey and \
+privkey options in %s" % ( keyfile, certfile, conf ))
+    else:
+        print(e.strerror)
+    exit(3)
+
+try:
+    context.load_verify_locations(cafile)
+except (IOError) as e:
+    if e.errno==2:
+        if e.filename is not None:
+            print("Couldnt find the file %s." % (e.filename))
+        else:
+            print("Couldnt find the certificate authority file.  You've \
+configured it to be %s.  If you have named it something \
+different, you'll have to set the cacert option in the [general] section of \
+%s" % ( cafile, conf ))
+    else:
+        print(e.strerror)
+    exit(3)
+
+context.verify_mode = ssl.CERT_REQUIRED
+
 try:
     while True:
         (inSecSock, addr)=mainSock.accept()
-        sock = wrap_socket(inSecSock,
-                           keyfile=fetchConfig(config, "server", "keyfile", "/etc/notify-multiplexer/server.key"),
-                           certfile=fetchConfig(config, "server", "keyfile", "/etc/notify-multiplexer/server.crt"),
-                           server_side=True,
-                           cert_reqs=CERT_REQUIRED,
-                           )
-        clientsLock.acquire()
-        read = delimitedRecv(sock).strip()
-        if read.upper()[:4] == "UID:":
-            uid = read[4:]
-            found = False
-            for client in clients:
-                #print "Client UID is " + client.uid
-                if client.uid==uid:
-                    print("Reconnected UID: " + uid)
-                    client.updateSocket(sock)
-                    found=True
-            if found==False:
-                print("New socket UID not found!: " + uid)
-                scp = singleConnManager(sock, uid)
-                scp.start()
-                clients.append(scp)
-        else:
-            #.. noncompliant...
-            sock.shutdown(socket.SHUT_RDWR)
-            sock.close()
-        clientsLock.release()
+        setup = setupSecureSocket(inSecSock)
+        setup.start()
+        
 except KeyboardInterrupt:
     mainSock.shutdown(socket.SHUT_RDWR)
     mainSock.close()
