@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import socket, sys, threading, Queue, ConfigParser
+import socket, sys, threading, queue, configparser
 from re import split, sub, match
 from time import sleep
 from ssl import CERT_REQUIRED, wrap_socket
@@ -47,9 +47,9 @@ class singleConnSender(threading.Thread):
                 if len(self.queue)>0:
                     self.socket.sendall(self.queue[0])
                     if self.debug and self.uid is not None:
-                        print self.uid + "Successfully sent the message " + sub("\0",
+                        print(self.uid + "Successfully sent the message " + sub("\0",
                                                                  "!",
-                                                                 self.queue.pop(0))
+                                                                 self.queue.pop(0)))
                 else:
                     sleep(1)
             except:
@@ -75,10 +75,10 @@ class singleConnManager(threading.Thread):
             read = delimitedRecv(self.socket).strip()
             if read.upper()[:4] == "PING":
                 if self.debug:
-                    print "{0}: Ping!".format(self.uid)
+                    print("{0}: Ping!".format(self.uid))
                 self.socket.sendall("PONG\0\0\0\0\n")
             if read.upper()[:4] == "UID":
-                print "Unreq'd UID: " + read[4:]
+                print("Unreq'd UID: " + read[4:])
                 self.uid = read[4:]
     
     def send(self, message):
@@ -99,14 +99,14 @@ class allConnsSender(threading.Thread):
     def run(self):
         while True:
             message = queue.get()
-            print sub("\0", "!", message)
+            print(sub("\0", "!", message))
             for con in self.conns:
                 con.send(message)
 
 def fetchConfig(config,section,name, default=None):
     try:
         return config.get(section,name).strip()
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         return default
 
 #set up defaults
@@ -120,7 +120,7 @@ conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
 try:
     conffh = open(conf)
 except IOError as e:
-    print e
+    print(e)
     e.printStackTrace()
     exit(1)
 
@@ -128,7 +128,7 @@ if (len(sys.argv)>1):
     conf = sys.argv[1]
 
 #lets deal with config files
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 
 #lets start by setting up our server socket
 try:
@@ -136,13 +136,13 @@ try:
     mainSock.bind(addr)
     mainSock.listen(1)
 except socket.error as err:
-    print "Couldnt bind socket!"
-    print err
+    print("Couldnt bind socket!")
+    print(err)
     exit(2)
 
 clientsLock = threading.Lock()
 clients=[]
-queue = Queue.Queue()
+queue = queue.Queue()
 
 acs = allConnsSender(queue, clients)
 #acs.daemon=True
@@ -169,11 +169,11 @@ try:
             for client in clients:
                 #print "Client UID is " + client.uid
                 if client.uid==uid:
-                    print "Reconnected UID: " + uid
+                    print("Reconnected UID: " + uid)
                     client.updateSocket(sock)
                     found=True
             if found==False:
-                print "New socket UID not found!: " + uid
+                print("New socket UID not found!: " + uid)
                 scp = singleConnManager(sock, uid)
                 scp.start()
                 clients.append(scp)

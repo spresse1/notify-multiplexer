@@ -38,6 +38,54 @@ The following options can be given on the command line to adjust the behavior of
 	exit 0
 }
 
+function makeCACert {
+    echo "
+    We are about to generate you a CA certificate.  This is the root certificate used so your clients trust your server and vice-versa.
+    If youve already seen this, there are two possibilities:
+    1) You generated a CA certificate on this machine, but used the -c option to this script to name is something non-default.  Please remember to pass the name you used in -c every time you run this script
+    2) You generated a CA certificate on another machine and are trying to generate a new client certificate for this machine.  If this is the case, you'll need to generate the client certificates on the machine where you have the CA certificate.
+    If either of these applies to you, you probably don't want to be doing this.
+    "
+    read -ep "Are you sure you want to do this? [y/N]: " CHOICE
+    
+    if [ `expr match "$CHOICE" "y"` -eq  1 ]
+    then
+	PASSWORD=""
+	while [ `expr length "$PASSWORD"` -lt 4 ]
+	do
+	    echo ""
+	    read -esp "Password for the root certificate (will not echo, at least 4 characters): " PASSWORD
+	done
+	echo "" #print a newline after the passwd prompt
+	#magic hack so we can specify the password on the command line.  Otherwise openssl tries to read it on stdin
+	export PASSWD="$PASSWORD"
+	read -ep "Name of your organization: [] " ORGNAME
+	if [ -z "$ORGNAME" ]
+	then
+	    ORGNAME="."
+	fi
+	COMNAME=""
+	while [ -z "$COMNAME" ]
+	do
+	    read -ep "Full length name for your root certificate.  This is probably the FQDN of your root domain (required): " COMNAME
+	done
+	echo "Generating your CA certificate:"
+        openssl genrsa -des3 -passout env:PASSWD -out "$CACERTNAME.key" $BITS
+	openssl req -new -x509 -passin env:PASSWD -days $DAYS -key "$CACERTNAME.key" -out "$CACERTNAME.crt" > /dev/null 2>&1 <<<".
+.
+.
+$ORGNAME
+.
+$COMNAME
+.
+.
+.
+"
+    else
+	exit 0
+    fi
+}
+
 #Now, lets do some fancy bash getopt-ing
 # src: http://wiki.bash-hackers.org/howto/getopts_tutorial
 # -o OUTDIR
@@ -77,14 +125,73 @@ do
 	esac
 done
 
-echo "Out dir is $OUTDIR"
-echo "CA cert is $CACERTNAME"
-echo "Bits are $BITS"
-echo "Days is $DAYS"
+#echo "Out dir is $OUTDIR"
+#echo "CA cert is $CACERTNAME"
+#echo "Bits are $BITS"
+#echo "Days is $DAYS"
 
-exit 0
-openssl genrsa -des3 -out ca.key 4096
-openssl req -new -x509 -days 3650 -key ca.key -out ca.crt
-openssl genrsa -des3 -out server.key 4096
-openssl req -new -key server.key -out server.csr
-openssl x509 -req -days 3650 -in server.csr -CA ca.crt -CAkey ca.key -set_serial 01 -out server.crt
+#exit 0
+
+if [ `whoami` != "root" ]
+then
+    echo "******************************************
+WARNING: OpenSSL requires root privaledges to run on some systems.  \
+if this script fails, try rerunning it with root.
+******************************************"
+fi
+
+cd "$OUTDIR"
+
+if [ ! -f "$CACERTNAME.crt" ]
+then
+    makeCACert
+fi
+
+echo "Generating client certificate..."
+read -ep "Name for this certificate: " CERTNAME
+PASSWORD=""
+    while [ `expr length "$PASSWORD"` -lt 4 ]
+    do
+	read -esp "Password for this certificate (will not echo): " PASSWORD
+    done
+#doesnt echo the newline, so add one ourseves
+echo ""
+echo "Now we're going to gather some basic info on who this certificate is for.  Most of it is irrelevent, but some you may want to set.  If a field is used, we explain what for."
+read -ep "Name of your organization.  This is irrelevent, but useful if you ever want to query the certificate: [] " ORGNAME
+if [ -z "$ORGNAME" ]
+then
+    ORGNAME="."
+fi
+read -ep "Name for your client: [] " CLINAME
+if [ -z "CLINAME" ]
+then
+    CLINAME="."
+fi
+COMNAME=""
+while [ -z "$COMNAME" ]
+do
+    read -ep "Full length name for your client.  This is probably the FQDN, if it has one. This is used by the notify-server to uniquely identify attached clients for e.g. allowing or denying access (required): " COMNAME
+done
+#magic hack so we can specify the password on the command line.  Otherwise openssl tries to read it on stdin
+export PASSWD="$PASSWORD"
+echo "We're now building a key. This could take a moment..."
+openssl genrsa -des3 -passout env:PASSWD -out "$CERTNAME.key" $BITS
+echo "Generating certificate signing request"
+openssl req -new -passin env:PASSWD -key "$CERTNAME.key" -out "$CERTNAME.csr" > /dev/null 2>&1 <<<".
+.
+.
+$ORGNAME
+$CLINAME
+$COMNAME
+.
+.
+.
+"
+echo "
+Generating final certificate.  You *will* be asked for the password for your ca certificate in this process
+"
+openssl x509 -req -days $DAYS -in "$CERTNAME.csr" -CA "$CACERTNAME.crt" \
+    -CAkey "$CACERTNAME.key" -set_serial 01 -out "$CERTNAME.crt"
+
+echo "Done! Enjoy!
+Copy $CERTNAME.crt and $CERTNAME.key to whatever client they will be used on and configure them there."
