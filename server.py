@@ -3,19 +3,43 @@
 import socket, sys, threading, queue, configparser
 from re import split, sub, match
 from time import sleep
-import ssl
+import ssl, logging
 
-def delimitedRecv(msocket):
+class SingleMessageSocketWrapper:
+    def __init__(self, socket):
+        self.socket = socket
+        self.recvBuffer = ""
+        
+    def recv(self):
+        logging.debug("called recv")
+        while (match("(.*?[\0]{2,})", self.recvBuffer) is None):
+            #logging.debug("Match was... %s" %
+            #              (match("(.*?[\0]{2,})", self.recvBuffer)))
+            read = self.socket.recv(1024)
+            if len(read)>0:
+                self.recvBuffer = self.recvBuffer + read.decode('UTF-8')
+            #logging.debug("recvBuffer now is %s" %
+            #              (sub("\0","!",self.recvBuffer)))
+        logging.debug("Busy(ish) wait done")
+        msg = match("(.*?[\0]{2,})", self.recvBuffer).group(0)
+        logging.debug("Message is %s" % (sub("\0","!",msg)))
+        logging.debug("recvBuffer was %s" % (sub("\0","!",self.recvBuffer)))
+        self.recvBuffer = self.recvBuffer[len(msg):]
+        logging.debug("recvBuffer now is %s" % (sub("\0","!",self.recvBuffer)))
+        return msg
     #print "Using delimited recv"
-    peek = msocket.recv(1024,socket.MSG_PEEK)
-    msg = match("(.*?[\0]{2,})", peek)
-    #print 'peek is {0}'.format(sub("\0","!",peek))
-    if msg is not None:
+    #peek = msocket.recv(1024,socket.MSG_PEEK)
+    #msg = match("(.*?[\0]{2,})", peek)
+    #print('peek is %s' % (sub("\0","!",peek)))
+    #if msg is not None:
         #print msg.group(0)
         #print 'msg is {0}'.format(sub("\0","!",msg.group(0)))
         #this ought to pull exactly the length of the first message....
-        return msocket.recv(len(msg.group(0)))
-    return msocket.recv(1024)
+    #    return msocket.recv(len(msg.group(0)))
+    #return msocket.recv(1024)
+    
+    def updateSocket(self, socket):
+        self.socket = socket
 
 class localListener(threading.Thread):
     def __init__(self,queue):
@@ -30,12 +54,12 @@ class localListener(threading.Thread):
         while True:
             #we dont use delimited recv becasue these dont get processed
             raw = self.sock.recv(4096)
-            self.queue.put(raw)
+            logging.info("Got message: %s" % (sub("\0", "!", str(raw))))
+            self.queue.put(str(raw))
 
 class singleConnSender(threading.Thread):
-    def __init__(self,socket,queue, debug=False, uid=None):
+    def __init__(self,socket,queue, uid=None):
         threading.Thread.__init__(self)
-        self.debug=debug
         self.uid = uid
         self.daemon = True
         self.socket = socket
@@ -45,11 +69,14 @@ class singleConnSender(threading.Thread):
         while True:
             try:
                 if len(self.queue)>0:
-                    self.socket.sendall(self.queue[0])
-                    if self.debug and self.uid is not None:
-                        print(self.uid + "Successfully sent the message " + sub("\0",
-                                                                 "!",
-                                                                 self.queue.pop(0)))
+                    logging.debug("%s: There is something in the send queue!" %
+                                  (self.uid))
+                    self.socket.sendall(bytes(self.queue[0],'UTF-8'))
+                    if self.uid is not None:
+                        logging.debug(self.uid + ": Successfully sent the \
+                                      message %s" % (sub("\0", "!",
+                                                         self.queue.pop(0)))
+                        )
                 else:
                     sleep(1)
             except:
@@ -59,35 +86,38 @@ class singleConnSender(threading.Thread):
         self.socket = socket
 
 class singleConnManager(threading.Thread):
-    def __init__(self, socket, uid, debug = False):
+    def __init__(self, socket, uid):
         threading.Thread.__init__(self)
         self.socket = socket
+        self.bufferedSocket = SingleMessageSocketWrapper(self.socket)
         self.daemon = True
-        self.debug = debug
         self.uid = uid
         self.queue = []
         self.socketQueue = []
-        self.sendT = singleConnSender(self.socket, self.queue, debug=True, uid=self.uid)
+        self.sendT = singleConnSender(self.socket, self.queue, uid=self.uid)
         self.sendT.start()
     
     def run(self):
         while True:
-            read = delimitedRecv(self.socket).strip()
+            read = self.bufferedSocket.recv().strip()
             if read.upper()[:4] == "PING":
-                if self.debug:
-                    print("{0}: Ping!".format(self.uid))
-                self.socket.sendall("PONG\0\0\0\0\n")
+                logging.debug("{0}: Ping!".format(self.uid))
+                self.socket.sendall(bytes("PONG\0\0\0\0\n",'UTF-8'))
+                logging.debug("%s: Sent PONG" % (self.uid))
             if read.upper()[:4] == "UID":
-                print("Unreq'd UID: " + read[4:])
+                logging.info("Unreq'd UID: " + read[4:])
                 self.uid = read[4:]
     
     def send(self, message):
+        logging.debug("%s: singleConnManager recieved send()" % self.uid)
         self.queue.append(message)
         
     def updateSocket(self, socket):
+        logging.debug("%s: Updating socket to %s" % (self.uid, repr(socket)))
         self.socket = socket
         self.sendT.updateSocket(socket)
-        
+        self.bufferedSocket.updateSocket(socket)
+        logging.info("%s: Socket updated" % (self.uid))
 
 class allConnsSender(threading.Thread):
     def __init__(self,queue,connsList):
@@ -99,7 +129,8 @@ class allConnsSender(threading.Thread):
     def run(self):
         while True:
             message = queue.get()
-            print(sub("\0", "!", message))
+            logging.info("Main server recieved: %s" % (sub("\0", "!",
+                                                       message)))
             for con in self.conns:
                 con.send(message)
 
@@ -116,24 +147,27 @@ class setupSecureSocket(threading.Thread):
             sock = context.wrap_socket(self.socket,
                            server_side=True,
                            )
+            self.bufferedSocket = SingleMessageSocketWrapper(sock)
         except Exception as e:
-            print(e.strerror)
-            self.socket.shutdown(socket.SHUT_RDWR)
+            logging.info("Couldnt start ssl socket: %s" % (e.strerror))
             self.socket.close()
             exit(4)
+        logging.debug("set up a new secure socket")
         clientsLock.acquire()
-        read = delimitedRecv(sock).strip()
+        logging.debug("Waiting on UID...")
+        read = self.bufferedSocket.recv().strip()
+        logging.debug("Got a message: %s" % (read))
         if read.upper()[:4] == "UID:":
             uid = read[4:]
             found = False
             for client in clients:
                 #print "Client UID is " + client.uid
                 if client.uid==uid:
-                    print("Reconnected UID: " + uid)
+                    logging.info("Reconnected UID: " + uid)
                     client.updateSocket(sock)
                     found=True
             if found==False:
-                print("New socket UID not found!: " + uid)
+                logging.info("New socket UID not found!: " + uid)
                 scp = singleConnManager(sock, uid)
                 scp.start()
                 clients.append(scp)
@@ -145,12 +179,12 @@ class setupSecureSocket(threading.Thread):
 
 def fetchConfig(config,section,name, default=None):
     try:
-        return config.get(section,name).strip()
-    except (configparser.NoOptionError, configparser.NoSectionError):
+        return config[section][name]
+    except KeyError:
         return default
 
 #set up defaults
-addr = ('0.0.0.0', 9012)
+addr = ('0.0.0.0', 9013)
 
 #input args:
 # [1] config file, defaults to /etc/notify-multiplexer/notify-multiplexer.conf
@@ -158,18 +192,25 @@ addr = ('0.0.0.0', 9012)
 conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
 
 if (len(sys.argv)>1):
-    conf = sys.argv[1]
+    if sys.argv[1][:7]!="--debug":
+        conf = sys.argv[1]
+    else:
+        logging.basicConfig(level=logging.INFO)
+        logging.info("Logging enabled")
 
+#lets deal with config files
+config = configparser.SafeConfigParser()
+logging.info("using config file %s" % (conf))
 try:
-    conffh = open(conf)
+    config.read(conf)
 except IOError as e:
-    print("Issues loading config file: " + conf + ": " + repr(e.strerror) +
+    logging.fatal("Issues loading config file: " + conf + ": " + repr(e.strerror) +
           ", bailing.")
     #e.printStackTrace()
     exit(1)
 
-#lets deal with config files
-config = configparser.SafeConfigParser()
+
+
 
 #lets start by setting up our server socket
 try:
@@ -177,9 +218,10 @@ try:
     mainSock.bind(addr)
     mainSock.listen(1)
 except socket.error as err:
-    print("Couldnt bind socket!")
-    print(err)
+    logging.fatal("Couldnt bind socket!")
+    logging.fatal(err)
     exit(2)
+logging.debug("Initalized main socket")
 
 clientsLock = threading.Lock()
 clients=[]
@@ -195,22 +237,26 @@ ll.start()
 
 #set up the SSL context, yay!
 context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-keyfile=fetchConfig(config, "server", "pubkey", "/etc/notify-multiplexer/server.key")
-certfile=fetchConfig(config, "server", "privkey", "/etc/notify-multiplexer/server.crt")
-cafile=fetchConfig(config, "general", "cacertificate", "/etc/notify-multiplexer/ca.crt")
+
+rootdir=fetchConfig(config, "general", "rootdir", "/etc/notify-multiplexer/")
+logging.debug("Root dir is %s" % (rootdir))
+
+keyfile=rootdir + fetchConfig(config, "server", "pubkey", "server.key")
+certfile=rootdir + fetchConfig(config, "server", "privkey", "server.crt")
+cafile=rootdir + fetchConfig(config, "general", "cacertificate", "ca.crt")
 try:
     context.load_cert_chain(keyfile=keyfile, certfile=certfile)
 except (IOError) as e:
     if e.errno==2:
         if e.filename is not None:
-            print("Couldnt find the file %s." % (e.filename))
+            logging.fatal("Couldnt find the file %s." % (e.filename))
         else:
-            print("Couldnt find the server keys.  Youve set them to %s and %s. \
+            logging.fatal("Couldnt find the server keys.  Youve set them to %s and %s. \
 If you need to generate them, use the make_certs.sh script.  If you have \
 already generated them under a different name, you need to set the pubkey and \
-privkey options in %s" % ( keyfile, certfile, conf ))
+privkey options in the [server] section of  %s" % ( keyfile, certfile, conf ))
     else:
-        print(e.strerror)
+        logging.fatal(e.strerror)
     exit(3)
 
 try:
@@ -218,21 +264,24 @@ try:
 except (IOError) as e:
     if e.errno==2:
         if e.filename is not None:
-            print("Couldnt find the file %s." % (e.filename))
+            logging.fatal("Couldnt find the file %s." % (e.filename))
         else:
-            print("Couldnt find the certificate authority file.  You've \
+            logging.fatal("Couldnt find the certificate authority file.  You've \
 configured it to be %s.  If you have named it something \
 different, you'll have to set the cacert option in the [general] section of \
 %s" % ( cafile, conf ))
     else:
-        print(e.strerror)
+        logging.fatal(e.strerror)
     exit(3)
 
 context.verify_mode = ssl.CERT_REQUIRED
 
+logging.info("SSL context initalized, waiting on clients")
+
 try:
     while True:
         (inSecSock, addr)=mainSock.accept()
+        logging.debug("Got a client")
         setup = setupSecureSocket(inSecSock)
         setup.start()
         
