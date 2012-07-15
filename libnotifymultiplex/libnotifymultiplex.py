@@ -23,8 +23,7 @@ def send(subject, text, image):
 
 class NotifyMultiplexReciever:
     
-    def __init__(self, conffile="/etc/notify-multiplexer/notify-multiplexer.conf",
-                pingOnConnect=False,):
+    def __init__(self, conffile="/etc/notify-multiplexer/notify-multiplexer.conf",):
         self.partial=""
         self.msgQueue = queue.Queue()
         self.conf = configparser.ConfigParser()
@@ -41,8 +40,7 @@ class NotifyMultiplexReciever:
             raise NotifyMultiplexReciever.ConfigurationError("For proper client\
 use, you MUST set the server configuration option in the [client] section of %s"
             % (conffile))
-        self.conMan = self._connManager(host, port, self.msgQueue, timeout,
-                                        pingOnConnect)
+        self.conMan = self._connManager(host, port, self.msgQueue, timeout)
         self.conMan.start()
         logging.info("Debugging on; initalized")
         
@@ -56,20 +54,49 @@ use, you MUST set the server configuration option in the [client] section of %s"
     
     class _connManager(threading.Thread):
         
-        def __init__(self, host, port, queue, timeout=60, pingOnConnect=False,
+        class _pingManager(threading.Thread):
+            def __init__(self, socket, pingSemaphore, parent, timeout=60):
+                threading.Thread.__init__(self)
+                self.sock = socket
+                self.sem = pingSemaphore
+                self.parent = parent
+                self.timeout = timeout
+            
+            def run(self):
+                while True:
+                    if self.sem.acquire(blocking=False):
+                        #true indicates we got the semaphore
+                        #So ping
+                        logging.debug("Pingthread acquired semaphore, pinging")
+                        try:
+                            self.sock.sendall(bytes("PING\0\0\0\0", 'UTF-8'))
+                        except (Exception) as e:
+                            #this is a fallthrough case and we'll reconnect the next time anyway
+                            logging.debug("Socket sending failed!: %s" %
+                                          (repr(e)))
+                        logging.debug("Ping!")
+                    else:
+                        #No semaphore, therefore we didnt get a response ot the last ping
+                        #no decent way to call back to the parent?
+                        logging.debug("Ouch, didnt ping, trying to reconnect")
+                        self.parent.connect()
+                    sleep(self.timeout)
+            
+            def updateSocket(self, socket):
+                self.socket = socket
+        
+        def __init__(self, host, port, queue, timeout=60, 
                      conffile="/etc/notify-multiplexer/notify-multiplexer.conf"):
             threading.Thread.__init__(self)
             self.host = host
             self.port = port
             self.uid = get_mac()
             self.connected = False
-            self.pingWait = False
+            self.pingSem = threading.Semaphore()
             self.daemon = True
             self.timeout = timeout
             self.queue = queue
             self.config = configparser.SafeConfigParser()
-            
-            self.pingOnConnect = pingOnConnect
             
             #read config into object
             try:
@@ -80,6 +107,10 @@ use, you MUST set the server configuration option in the [client] section of %s"
                 exit(1)
             
             self.context = self.makeSSLContext()
+            
+            
+            self.pingThread = NotifyMultiplexReciever._connManager._pingManager(
+                self.socket, self.pingSem, self, self.timeout)
             
             logging.info("Initalized")
         
@@ -168,6 +199,7 @@ the privkey option in the [client] section of %s" % (conf))
                 sleep(self.timeout)
             except Exception as e:
                 logging.error("Error connecting: %s" % (repr(e)))
+            self.pingSem.release()
             logging.info("Connected!")
         
         def run(self):
@@ -213,21 +245,10 @@ the privkey option in the [client] section of %s" % (conf))
                                           (packet))
                                 #oh fuckers.  Lets split messages...
                                 self.queue.put(packet)
-                            if (packet==""):
+                            elif (packet[:4]=="PONG"):
+                                self.pingSem.release()
+                            else: #(packet==""):
                                 self.connect()
-                else:
-                    logging.debug("nope, just a timeout")
-                    if pingwait:
-                        self.connect()
-                    #need to wrap this in a try
-                    try:
-                        self.sock.sendall(bytes("PING\0\0\0\0", 'UTF-8'))
-                    except (Exception) as e:
-                        #this is a fallthrough case and we'll reconnect the next time anyway
-                        logging.debug("Socket sending failed!: %s" %
-                                      (repr(e)))
-                    logging.debug("Ping!")
-                    pingwait=True
     
     def recv(self):
         data=""
