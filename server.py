@@ -183,9 +183,6 @@ def fetchConfig(config,section,name, default=None):
     except KeyError:
         return default
 
-#set up defaults
-addr = ('0.0.0.0', 9013)
-
 #input args:
 # [1] config file, defaults to /etc/notify-multiplexer/notify-multiplexer.conf
 
@@ -209,13 +206,13 @@ except IOError as e:
     #e.printStackTrace()
     exit(1)
 
-
-
+addr = fetchConfig(config, "server", "address", '0.0.0.0')
+port = int(fetchConfig(config, "server", "port", 9012))
 
 #lets start by setting up our server socket
 try:
     mainSock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    mainSock.bind(addr)
+    mainSock.bind((addr, port))
     mainSock.listen(1)
 except socket.error as err:
     logging.fatal("Couldnt bind socket!")

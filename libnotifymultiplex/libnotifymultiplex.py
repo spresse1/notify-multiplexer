@@ -23,19 +23,27 @@ def send(subject, text, image):
 
 class NotifyMultiplexReciever:
     
-    def __init__(self, host, port, timeout=60, pingOnConnect=False,
-                    conffile="/etc/notify-multiplexer/notify-multiplexer.conf"):
+    def __init__(self, conffile="/etc/notify-multiplexer/notify-multiplexer.conf",
+                pingOnConnect=False,):
         self.partial=""
         self.msgQueue = queue.Queue()
-        self.conMan = self._connManager(host, port, self.msgQueue, timeout,
-                                        pingOnConnect)
-        self.conMan.start()
+        self.conf = configparser.ConfigParser()
         try:
-            self.conf = open(conffile)
+            self.conf.read(conffile)
         except (IOError) as e:
             logging.fatal(("Couldn't find your configuration file (%s)." %
                            (conffile)))
             raise e
+        host = fetchConfig(self.conf, "client", "server", None)
+        port = int(fetchConfig(self.conf, "client", "port", 9012))
+        timeout = int(fetchConfig(self.conf, "client", "timeout", 60))
+        if host is None:
+            raise NotifyMultiplexReciever.ConfigurationError("For proper client\
+use, you MUST set the server configuration option in the [client] section of %s"
+            % (conffile))
+        self.conMan = self._connManager(host, port, self.msgQueue, timeout,
+                                        pingOnConnect)
+        self.conMan.start()
         logging.info("Debugging on; initalized")
         
     def _toDict(self, data):
@@ -192,7 +200,7 @@ the privkey option in the [client] section of %s" % (conf))
                     #    logging.debug("Got zero length string, ignoring")
                     #    sleep(1)
                     #    continue
-                    logging.debug("No exceptions...")
+                    #logging.debug("No exceptions...")
                     matches = re.match("(.*?[\0]{2,})",
                                                data)
                     logging.debug("Matches is: %s" % ((matches)))
@@ -293,11 +301,10 @@ if __name__ == '__main__':
     
     logging.basicConfig(level=logging.DEBUG)
 
-    sock = NotifyMultiplexReciever('hawking.pressers.name', 9013, conffile=conf,
-                                   timeout=1)
+    sock = NotifyMultiplexReciever(conffile=conf)
     
     data = True
     while data is not False:
         data = sock.recv()
         if data!=False:
-            logging.debug("Got data (outer test loop): %s" % (data))
+            logging.info("Got data (outer test loop): %s" % (data))
