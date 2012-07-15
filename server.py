@@ -55,7 +55,7 @@ class localListener(threading.Thread):
             #we dont use delimited recv becasue these dont get processed
             raw = self.sock.recv(4096)
             logging.info("Got message: %s" % (sub("\0", "!", str(raw))))
-            self.queue.put(str(raw))
+            self.queue.put(raw.decode('UTF-8'))
 
 class singleConnSender(threading.Thread):
     def __init__(self,socket,queue, uid=None):
@@ -195,7 +195,7 @@ if (len(sys.argv)>1):
     if sys.argv[1][:7]!="--debug":
         conf = sys.argv[1]
     else:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.DEBUG)
         logging.info("Logging enabled")
 
 #lets deal with config files

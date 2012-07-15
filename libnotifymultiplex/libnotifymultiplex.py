@@ -139,7 +139,7 @@ the privkey option in the [client] section of %s" % (conf))
         
         def connect(self):
             inSecSock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            self.sock = self.context.wrap_socket(inSecSock,)
+            self.sock = self.context.wrap_socket(inSecSock)
             self.bufferedSocket = NotifyMultiplexReciever.SingleMessageSocketWrapper(self.sock)
             logging.debug("connecting...")
             try:
@@ -172,7 +172,8 @@ the privkey option in the [client] section of %s" % (conf))
                     logging.debug("got something")
                     pingwait=False
                     try:
-                        data = self.bufferedSocket.recv()
+                        data = self.sock.recv(1024).decode('UTF-8')
+                        #data = self.bufferedSocket.recv()
                         logging.debug("Socket got: %s" %
                                   (sub("\0", "!", data)))
                     except IOError as e:
@@ -191,13 +192,21 @@ the privkey option in the [client] section of %s" % (conf))
                     #    logging.debug("Got zero length string, ignoring")
                     #    sleep(1)
                     #    continue
-                    if (data[:4]!="PONG"):
-                        #insert into queue
-                        logging.debug("Dropping %s into queue" %
-                                      (data))
-                        self.queue.put(data)
-                    if (data==""):
-                        self.connect()
+                    logging.debug("No exceptions...")
+                    matches = re.match("(.*?[\0]{2,})",
+                                               data)
+                    logging.debug("Matches is: %s" % ((matches)))
+                    if matches is not None:
+                        logging.debug("Matches is non-None")
+                        for packet in matches.groups():
+                            if (packet[:4]!="PONG"):
+                                #insert into queue
+                                logging.debug("Dropping %s into queue" %
+                                          (packet))
+                                #oh fuckers.  Lets split messages...
+                                self.queue.put(packet)
+                            if (packet==""):
+                                self.connect()
                 else:
                     logging.debug("nope, just a timeout")
                     if pingwait:
@@ -244,6 +253,7 @@ the privkey option in the [client] section of %s" % (conf))
             logging.debug("called recv")
             while (re.match("(.*?[\0]{2,})", self.recvBuffer) is None):
                 read = self.socket.recv(1024)
+                logging.debug("Recv got: %s" % (read))
                 if len(read)>0:
                     self.recvBuffer = self.recvBuffer + read.decode('UTF-8')
             logging.debug("Busy(ish) wait done")
