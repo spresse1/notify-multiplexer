@@ -55,35 +55,41 @@ use, you MUST set the server configuration option in the [client] section of %s"
     class _connManager(threading.Thread):
         
         class _pingManager(threading.Thread):
-            def __init__(self, socket, pingSemaphore, parent, timeout=60):
+            def __init__(self, pingSemaphore, parent, timeout=60):
                 threading.Thread.__init__(self)
-                self.sock = socket
+                self.sock = None
                 self.sem = pingSemaphore
                 self.parent = parent
                 self.timeout = timeout
+                logging.debug("Timeout is %s" % (timeout))
             
             def run(self):
+                logging.debug("_pingManager started")
                 while True:
-                    if self.sem.acquire(blocking=False):
-                        #true indicates we got the semaphore
-                        #So ping
-                        logging.debug("Pingthread acquired semaphore, pinging")
-                        try:
-                            self.sock.sendall(bytes("PING\0\0\0\0", 'UTF-8'))
-                        except (Exception) as e:
-                            #this is a fallthrough case and we'll reconnect the next time anyway
-                            logging.debug("Socket sending failed!: %s" %
-                                          (repr(e)))
-                        logging.debug("Ping!")
-                    else:
-                        #No semaphore, therefore we didnt get a response ot the last ping
-                        #no decent way to call back to the parent?
-                        logging.debug("Ouch, didnt ping, trying to reconnect")
-                        self.parent.connect()
+                    logging.debug("Time for a ping!")
+                    if self.sock is not None:
+                        logging.debug("Have a sane socket to ping")
+                        if self.sem.acquire(blocking=False):
+                            #true indicates we got the semaphore
+                            #So ping
+                            logging.debug("Pingthread acquired semaphore, pinging")
+                            try:
+                                self.sock.sendall(bytes("PING\0\0\0\0", 'UTF-8'))
+                            except (Exception) as e:
+                                #this is a fallthrough case and we'll reconnect the next time anyway
+                                logging.debug("Socket sending failed!: %s" %
+                                              (repr(e)))
+                            logging.debug("Ping!")
+                        else:
+                            #No semaphore, therefore we didnt get a response ot the last ping
+                            #no decent way to call back to the parent?
+                            logging.debug("Ouch, didnt ping, trying to reconnect")
+                            self.parent.connect()
                     sleep(self.timeout)
             
             def updateSocket(self, socket):
-                self.socket = socket
+                logging.debug("_pingManager: updating socket")
+                self.sock = socket
         
         def __init__(self, host, port, queue, timeout=60, 
                      conffile="/etc/notify-multiplexer/notify-multiplexer.conf"):
@@ -110,7 +116,8 @@ use, you MUST set the server configuration option in the [client] section of %s"
             
             
             self.pingThread = NotifyMultiplexReciever._connManager._pingManager(
-                self.socket, self.pingSem, self, self.timeout)
+                self.pingSem, self, self.timeout)
+            self.pingThread.start()
             
             logging.info("Initalized")
         
@@ -183,14 +190,9 @@ the privkey option in the [client] section of %s" % (conf))
             logging.debug("connecting...")
             try:
                 self.sock.connect((self.host, self.port))
-                if self.pingOnConnect:
-                    logging.debug("Sending initial UID+PING...")
-                    self.sock.sendall(bytes("UID:%d\0\0PING\0\0\0\0" %
-                                            (self.uid), 'UTF-8'))
-                else:
-                    logging.debug("Sending initial UID...")
-                    self.sock.sendall(bytes("UID:%d\0\0" %
-                                            (self.uid), 'UTF-8'))
+                self.pingThread.updateSocket(self.sock)
+                logging.debug("Sending initial UID...")
+                self.sock.sendall(bytes("UID:%d\0\0" % (self.uid), 'UTF-8'))
                 logging.debug("Sent UID (double-delimited)" + str(self.uid))
                 self.connected = True
                 logging.debug("connected")
