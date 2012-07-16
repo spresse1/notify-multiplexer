@@ -116,7 +116,7 @@ writing RSA key
 Done! Enjoy!
 Copy hawking.crt and hawking.key to whatever client they will be used on and configure them there.
 
-You shoudl repat this last part of the process once for each of your clients.
+You shoud repeat this last part of the process once for each of your clients.
 
 CONFIGURATION
 
