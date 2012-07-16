@@ -10,7 +10,12 @@ def imageConvert(text):
         return 'notification-message-im'
     return text
 
-sock = libnotifymultiplex.NotifyMultiplexReciever('hawking.pressers.name', 9012)
+conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
+
+if (len(sys.argv)>1):
+    conf = sys.argv[1]
+
+sock = libnotifymultiplex.NotifyMultiplexReciever(conf)
 
 while True:
     data = sock.recv()

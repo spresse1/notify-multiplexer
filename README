@@ -1,12 +1,122 @@
-This is a simple way to distribute notifications to many places based o a single source.  Notifications go in the AF_UNIX socket "\0notify-multiplexer".  They look like this:
+LICENSE
 
-[Start packet]
-Title line.  Be sure this includes no newlines!
-Text of teh alert.
-this
-may
-include
-newlines
-[end packet]
+Copyright (c) 2012-present, Steven Presser
+All rights reserved.
 
-Documentation on client modules forthcoming
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+BASIC DESCRIPTION
+
+This is notify-multiplexer, a fairly simple python server and client library for distributing notifications from one machine to other machines.  At the moment it is single-source-multiple-sink, though this may change (and someone may write a server to aggregate notifications from many machines...).  The entire application is designed to be secure from end to end.  It uses SSL certificates on both the client and the server sides and each side authenticates the other.  The server is allowed to white- or blacklist clients based on their certificates.
+
+SETUP
+
+_Server_
+Server installation is fairly standard.  
+
+_Client_
+There are several pre-built clients available, if you don't want to bother building your own.  The avialable clients are for Ubuntu (libnotify/pynotify) and OS X (ugh, I know.) via growl (the old, prepay version).  If you'd like to use a different notification methods, feel free to look at these as examples.  The operation is fairly simple.
+
+Ubuntu Installation:
+./ubuntu-install.sh
+
+OS X Install:
+
+
+Making certificates:
+In order to use both the client and server, you'll need to generate certificates.  It is my strong recommendation that you do all certificate generation on your sever, simply becasue it simplifies things (and because honestly, if you dont trust your server, you're screwed anyway).
+We'll start with generating a certificate for the server - after all, you cant operate without it.  The foundation for all certificate generation is the make_certs.sh script.  Some systems may require that this script may be run as root (becasue of the OpenSSL functionality this script wraps).  We're first going to generate a server certificate:
+Since this is the first certificate I've generated, I'll also be generating a CA Cerficate.  The CA certificate is used as a root certificate to sign otehr certificates.  Basically, the CA certificate marks other certificates as trusted.  notify-multiplexer assumes you use one root CA certificate and will fail to connect if you use a certificate not signed by this root CA certificate.  This is by design - it adds security - you control who is able to connect and read your notifications, for a very low additional initial setup cost.
+So Lets get started.  Any line marked with a # at the beginning is a comment, where I'm explaining something:
+$ sudo ./make_certs.sh 
+
+    We are about to generate you a CA certificate.  This is the root certificate used so your clients trust your server and vice-versa.
+    If youve already seen this, there are two possibilities:
+    1) You generated a CA certificate on this machine, but used the -c option to this script to name is something non-default.  Please remember to pass the name you used in -c every time you run this script
+    2) You generated a CA certificate on another machine and are trying to generate a new client certificate for this machine.  If this is the case, you'll need to generate the client certificates on the machine where you have the CA certificate.
+    If either of these applies to you, you probably don't want to be doing this.
+    
+Are you sure you want to do this? [y/N]: y
+# I entered yes since I know I havent generated a CA certificate yet.  If I knew I had, I'd know somethign was wrong and I should pay attention to what this was telling me.
+
+Password for the root certificate (will not echo, at least 4 characters): 
+Name of your organization: [] pressers.name
+#I've chosen to use my domain name, since it gives me one coherent namespace
+Full length name for your root certificate.  This is probably the FQDN of your root domain (required): hawking.pressers.name
+#This is the name of the machine I'm using as a server
+
+Generating your CA certificate:
+Generating RSA private key, 4096 bit long modulus
+....................................................................................................................................................................................++
+...................................++
+e is 65537 (0x10001)
+
+# Okay, so we're done with building the CA certificate
+#Which means we're building the client certificate.  Though the script refers to clients throughout, the certificate generation is the same for clients and servers.
+
+Generating client certificate...
+Name for this certificate: server
+#This ends up being the filename for the certificate.  By default we look for the server certificate at the name 'server'.  I just generally recommend the default for no reason other than ease of configuration.
+
+Now we're going to gather some basic info on who this certificate is for.  Most of it is irrelevant, but some you may want to set.  If a field is used, we explain what for.
+Name of your organization.  This is irrelevant, but useful if you ever want to query the certificate: [] pressers.name
+# again, my domain name as a sort of general namespace
+Name for your client: [] server
+# irrelephant, just pick something
+Full length name for your client.  This is probably the FQDN, if it has one. This is used by the notify-server to uniquely identify attached clients for e.g. allowing or denying access (required): hawking.pressers.name
+# also not really relevant on the server, but I recommend using the ful name anyway
+We're now building a key. This could take a moment...
+Generating RSA private key, 4096 bit long modulus
+.........................................................................++
+...........................................++
+e is 65537 (0x10001)
+Generating certificate signing request
+
+Generating final certificate.  You *will* be asked for the password for your ca certificate in this process
+
+Signature ok
+subject=/O=pressers.name/OU=server/CN=hawking.pressers.name
+Getting CA Private Key
+Enter pass phrase for ca.key:
+writing RSA key
+Done! Enjoy!
+Copy server.crt and server.key to whatever client they will be used on and configure them there.
+#Dont move them anywhere if you generated them on the server, you should be okay
+
+
+Okay, on to generating a client certificate.  This is best done on the server, as the CA certificate is already there and in a place where it is expected.  You can then copy both the public and private keys to the client and remove them from the server.
+$ sudo ./make_certs.sh 
+Generating client certificate...
+Name for this certificate: hawking
+# Again, this is the file name to use.
+
+Now we're going to gather some basic info on who this certificate is for.  Most of it is irrelevent, but some you may want to set.  If a field is used, we explain what for.
+Name of your organization.  This is irrelevent, but useful if you ever want to query the certificate: [] pressers.name
+Name for your client: [] hawking
+Full length name for your client.  This is probably the FQDN, if it has one. This is used by the notify-server to uniquely identify attached clients for e.g. allowing or denying access (required): hawking.pressers.name
+We're now building a key. This could take a moment...
+Generating RSA private key, 4096 bit long modulus
+..............................................................................................................++
+............................................................................................................................................................++
+e is 65537 (0x10001)
+Generating certificate signing request
+
+Generating final certificate.  You *will* be asked for the password for your ca certificate in this process
+
+Signature ok
+subject=/O=pressers.name/OU=hawking/CN=hawking.pressers.name
+Getting CA Private Key
+Enter pass phrase for ca.key:
+writing RSA key
+Done! Enjoy!
+Copy hawking.crt and hawking.key to whatever client they will be used on and configure them there.
+
+You shoudl repat this last part of the process once for each of your clients.
+
+CONFIGURATION
+

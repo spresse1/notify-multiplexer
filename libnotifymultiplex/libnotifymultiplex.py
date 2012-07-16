@@ -155,10 +155,10 @@ the privkey option in the [client] section of %s" % (conf))
                     if e.filename is not None:
                         logging.fatal("Couldnt find the file %s." % (e.filename))
                     else:
-                        logging.fatal("Couldnt find the client keys.  Youve set \
-    them to %s and %s. If you need to generate them, use the make_certs.sh script. \
-    If you have already generated them under a different name, you need to set the \
-    pubkey and privkey options in the [client] section of %s" %
+                        logging.fatal("Couldnt find the client keys.  Youve set\
+ them to %s and %s. If you need to generate them, use the make_certs.sh script.\
+ If you have already generated them under a different name, you need to set the\
+ pubkey and privkey options in the [client] section of %s" %
                         ( keyfile, certfile, conf ))
                 else:
                     logging.fatal(e.strerror)
@@ -170,14 +170,14 @@ the privkey option in the [client] section of %s" % (conf))
                     if e.filename is not None:
                         logging.fatal("Couldnt find the file %s." % (e.filename))
                     else:
-                        logging.fatal("Couldnt find the certificate authority file. \
-    You've configured it to be %s.  If you have named it something different, \
-    you'll have to set the cacert option in the [general] section of %s" %
+                        logging.fatal("Couldnt find the certificate authority \
+file. You've configured it to be %s.  If you have named it something different,\
+ you'll have to set the cacert option in the [general] section of %s" %
                         ( cafile, conf ))
                 else:
                     logging.fatal(e.strerror)
-                raise NotifyMultiplexReciever.ConfigurationError("You must set the \
-    cacart option in %s" % (conf))
+                raise NotifyMultiplexReciever.ConfigurationError("You must set \
+the cacart option in %s" % (conf))
             
             context.verify_mode = ssl.CERT_REQUIRED
             

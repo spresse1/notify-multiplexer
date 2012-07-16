@@ -12,8 +12,12 @@ def imageConvert(text):
 
 pynotify.init("notify-multiplexer")
 
+conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
 
-sock = libnotifymultiplex.NotifyMultiplexReciever('hawking.pressers.name', 9012)
+if (len(sys.argv)>1):
+    conf = sys.argv[1]
+
+sock = libnotifymultiplex.NotifyMultiplexReciever(conf)
 
 while True:
     data = sock.recv()
