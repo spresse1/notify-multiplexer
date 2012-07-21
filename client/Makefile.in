@@ -1,0 +1,13 @@
+prefix=@prefix@
+
+default :
+	echo "Build done"
+
+clean :
+	echo "Cleaning done"
+
+install :
+	echo cp ../libnotifymultiplex @pythondir@
+
+uninstall :
+	echo "Nothing to remove... yet."

@@ -3,6 +3,7 @@
 
 AC_PREREQ([2.68])
 AC_INIT([Notify Multiplex Client], [1.0], [steve@pressers.name])
+AM_INIT_AUTOMAKE([])
 AC_CONFIG_FILES([Makefile])
 
 # Checks for programs.
