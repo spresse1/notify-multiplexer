@@ -33,8 +33,10 @@ sub notify {
 	Type => SOCK_DGRAM,
 	Peer => "\0notify-multiplexer",
     ) or print 'Cant connect to socket';
-    my $fulltext = $summary . "\0" . $message . "\0im\0\0";
-    print $socket $fulltext;
+    if ($socket) {
+	my $fulltext = $summary . "\0" . $message . "\0im\0\0";
+	print $socket $fulltext;
+    }
     #print $fulltext
 }
  
