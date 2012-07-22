@@ -1,4 +1,5 @@
 prefix=@prefix@
+exec_prefix=@exec_prefix@
 
 default :
 	echo "Build done"
@@ -17,7 +18,10 @@ install :
 	#Then again, python eggs currently have no uninstall method
 	#And by having autoconf guess, I can have it do the removal too
 	#If this ends up being broken, I'll switch it back.
-	cp client.py @bindir@/notify-multiplex-client
+	cp server.py @sbindir@/notify-multiplex-server
+	#Now the init script...
+	cp notify-multiplex-server /etc/init.d/
+	mkdir -p @sysconfdir@/notify-multiplexer
 
 uninstall :
 	#So we don't actually remove the python egg.  Eggs lack a good way to do

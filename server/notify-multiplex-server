@@ -1,6 +1,11 @@
 #!/sbin/runscript
 # This script starts and stops the notify-multiplex server
 
+prefix=
+exec_prefix=${prefix}
+sysconfdir=${prefix}/etc
+sbindir=${exec_prefix}/sbin
+
 extra_started_commands=""
 
 depend() {
@@ -11,12 +16,14 @@ depend() {
 
 start() {
 	ebegin "Starting notify-multiplex-server"
-	start-stop-daemon -b -m --pidfile /var/run/notify-multiplex-server.pid -- notify-multiplexd
+	start-stop-daemon -b -m --pidfile ${prefix}/var/notify-multiplex-server.pid \
+		-- ${exec_prefix}/sbin/notify-multiplexd \
+		${prefix}/etc/notify-multiplexer/notify-multiplexer.conf
 	eend $? "Failed to start notify-multiplex-server"
 }
 
 stop() {
 	ebegin "Stopping notify-multiplex-server"
-	start-stop-daemon --stop -p /var/run/notify-multiplex-server.pid
+	start-stop-daemon --stop -p ${prefix}/var/notify-multiplex-server.pid
 	eend $? "Failed to stop notify-multiplex-server"
 }

@@ -188,9 +188,9 @@ def fetchConfig(config,section,name, default=None):
 
 conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
 
-if (len(sys.argv)>1):
-    if sys.argv[1][:7]!="--debug":
-        conf = sys.argv[1]
+for sys.argv[1:] as arg:
+    if arg!="--debug":
+        conf = arg
     else:
         logging.basicConfig(level=logging.DEBUG)
         logging.info("Logging enabled")
