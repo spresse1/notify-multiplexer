@@ -43,6 +43,7 @@ use, you MUST set the server configuration option in the [client] section of %s"
         self.conMan = self._connManager(host, port, self.msgQueue, timeout)
         self.conMan.start()
         logging.info("Debugging on; initalized")
+        self.daemon=True
         
     def _toDict(self, data):
         pparts = re.split("\0", data[:-2])
