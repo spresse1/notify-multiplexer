@@ -16,17 +16,37 @@ This is notify-multiplexer, a fairly simple python server and client library for
 
 SETUP
 
-_Server_
-Server installation is fairly standard.  
+There are three major components of the setup: a notification source, the server and a notification sink.  The server and sink installation is fairly standard.  Since the source, server and sink may all be on different machines, they all have distinct installation procedures.  These are documented below.
 
-_Client_
-There are several pre-built clients available, if you don't want to bother building your own.  The avialable clients are for Ubuntu (libnotify/pynotify) and OS X (ugh, I know.) via growl (the old, prepay version).  If you'd like to use a different notification methods, feel free to look at these as examples.  The operation is fairly simple.
+_Server Installation_
+$ cd server
+$ ./configure
+$ make
+# make install
 
-Ubuntu Installation:
-./ubuntu-install.sh
+_Sink Installation_
+There are several pre-built clients available, if you don't want to bother building your own.  The avialable clients are for Ubuntu (libnotify/pynotify) and OS X (ugh, I know.) via growl (the old, no-cost version (grumble making software cost grumble)).  If you'd like to use a different notification methods, feel free to look at these as examples.  The operation is fairly simple.
+
+Linux Installation (requires libnotify/pynotify):
+$ cd sink
+$ ./configure
+$ make
+# make install
 
 OS X Install:
+[I'm trying to fold this into one unified client.  No instructions therefore exist at the moment.]
 
+_Source Installation_
+irssi:
+$ mkdir -p 
+$ cp sources/irssi-notify-multiplex.pl ~/.irssi/scripts/notify-multiplex.pl
+
+You can then start the script from within irssi by typing: /script load notify-multiplex.pl
+
+If you want the plugin to autostart when you start irssi, also do the following:
+$ cd ~/.irssi/scripts
+$ ln -s ../notify-multiplex.pl autorun/notify-multiplex.pl
+(Or so. Some implementations of ln don't quite work the same)
 
 Making certificates:
 In order to use both the client and server, you'll need to generate certificates.  It is my strong recommendation that you do all certificate generation on your sever, simply becasue it simplifies things (and because honestly, if you dont trust your server, you're screwed anyway).

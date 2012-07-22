@@ -25,3 +25,10 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+# Random crap left about by auomake/autoconf/aclocal
+Makefile
+aclocal.m4
+autom4te.cache
+config.log
+config.status
