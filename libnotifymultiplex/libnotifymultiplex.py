@@ -128,9 +128,9 @@ use, you MUST set the server configuration option in the [client] section of %s"
             sslcontext = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             rootdir=fetchConfig(self.config, "general", "rootdir", "/etc/notify-multiplexer/")
             logging.info("rootdir is: %s" % (repr(rootdir)))
-            keyfile=fetchConfig(self.config, "client", "pubkey", None)
+            keyfile=fetchConfig(self.config, "client", "privkey", None)
             logging.info("pubkey is: %s" % (rootdir + str(keyfile)))
-            certfile=fetchConfig(self.config, "client", "privkey", None)
+            certfile=fetchConfig(self.config, "client", "pubkey", None)
             logging.info("privkey is: %s" % (rootdir + str(certfile)))
             cafile=rootdir + fetchConfig(self.config, "general", "cacertificate",
                                "ca.crt")
