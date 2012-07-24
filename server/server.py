@@ -188,7 +188,7 @@ def fetchConfig(config,section,name, default=None):
 
 conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
 
-for sys.argv[1:] as arg:
+for arg in sys.argv[1:]:
     if arg!="--debug":
         conf = arg
     else:

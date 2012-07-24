@@ -104,7 +104,7 @@ use, you MUST set the server configuration option in the [client] section of %s"
             self.timeout = timeout
             self.queue = queue
             self.config = configparser.SafeConfigParser()
-            
+            self.conffile = conffile
             #read config into object
             try:
                 self.config.read(conffile)
@@ -140,13 +140,13 @@ use, you MUST set the server configuration option in the [client] section of %s"
                 logging.fatal("You must set the pubkey option in the [client] \
 section of %s" % (conf))
                 raise NotifyMultiplexReciever.ConfigurationError("You must set \
-the pubkey option in the [client] section of %s" % (conf))
+the pubkey option in the [client] section of %s" % (self.conffile))
             keyfile = rootdir + keyfile
             if (certfile is None):
                 logging.fatal("You must set the privkey option in the [client] \
 section of %s" % (conf))
                 raise NotifyMultiplexReciever.ConfigurationError("You must set \
-the privkey option in the [client] section of %s" % (conf))
+the privkey option in the [client] section of %s" % (self.conffile))
             certfile = rootdir + certfile
             
             try:
@@ -160,7 +160,7 @@ the privkey option in the [client] section of %s" % (conf))
  them to %s and %s. If you need to generate them, use the make_certs.sh script.\
  If you have already generated them under a different name, you need to set the\
  pubkey and privkey options in the [client] section of %s" %
-                        ( keyfile, certfile, conf ))
+                        ( keyfile, certfile, self.conffile ))
                 else:
                     logging.fatal(e.strerror)
             
@@ -174,11 +174,11 @@ the privkey option in the [client] section of %s" % (conf))
                         logging.fatal("Couldnt find the certificate authority \
 file. You've configured it to be %s.  If you have named it something different,\
  you'll have to set the cacert option in the [general] section of %s" %
-                        ( cafile, conf ))
+                        ( cafile, self.conffile ))
                 else:
                     logging.fatal(e.strerror)
                 raise NotifyMultiplexReciever.ConfigurationError("You must set \
-the cacart option in %s" % (conf))
+the cacart option in %s" % (self.conffile))
             
             context.verify_mode = ssl.CERT_REQUIRED
             

@@ -24,7 +24,28 @@ class __pynotify:
         return text
     
     def send(self, data):
-        n = pynotify.Notification(data['title'],data['text'],imageConvert(data['image']))
+        import pynotify
+        n = pynotify.Notification(data['title'],data['text'],self.imageConvert(data['image']))
+        n.set_hint_string("x-canonical-append","true")
+        n.show()
+        
+class __pynotify2:
+    def __init__(self):
+        try:
+            import notify2
+        except ImportError:
+            raise BadNotifyMethod("notify2 not installed")
+        notify2.init("notify-multiplexer")
+    
+    def imageConvert(self, text):
+        text=text.lower()
+        if text=='im':
+            return 'notification-message-im'
+        return text
+    
+    def send(self, data):
+        import notify2
+        n = notify2.Notification(data['title'],data['text'],self.imageConvert(data['image']))
         n.set_hint_string("x-canonical-append","true")
         n.show()
 
@@ -32,7 +53,7 @@ class __growl12:
     def __init__(self):
         import subprocess
         try:
-            subprocess.call(['growlnotify'])
+            subprocess.call(['growlnotify','--version'])
         except:
             raise BadNotifyMethod("growl not installed")
     
@@ -43,6 +64,7 @@ class __growl12:
         return text
     
     def send(self, data):
+        import subprocess
         subprocess.call(['growlnotify','-t',data['title'],'-m',data['text']])
 
 conf = "/etc/notify-multiplexer/notify-multiplexer.conf"
@@ -54,6 +76,12 @@ nclass=None
 try:
     if nclass is None:
         nclass = __pynotify()
+except BadNotifyMethod as e:
+    print(e)
+
+try:
+    if nclass is None:
+        nclass = __pynotify2()
 except BadNotifyMethod as e:
     print(e)
 

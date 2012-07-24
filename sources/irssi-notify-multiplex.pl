@@ -32,7 +32,7 @@ sub notify {
     my $socket = IO::Socket::UNIX->new(
 	Type => SOCK_DGRAM,
 	Peer => "\0notify-multiplexer",
-    ) or print 'Cant connect to socket';
+    );
     if ($socket) {
 	my $fulltext = $summary . "\0" . $message . "\0im\0\0";
 	print $socket $fulltext;

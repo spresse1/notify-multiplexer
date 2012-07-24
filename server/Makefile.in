@@ -5,6 +5,7 @@ default :
 	echo "Build done"
 
 clean :
+	rm -rf ../build
 	echo "Cleaning done"
 
 install :

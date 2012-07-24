@@ -4,6 +4,7 @@ default :
 	echo "Build done"
 
 clean :
+	rm -rf ../build
 	echo "Cleaning done"
 
 install :
@@ -18,6 +19,7 @@ install :
 	#And by having autoconf guess, I can have it do the removal too
 	#If this ends up being broken, I'll switch it back.
 	cp client.py @bindir@/notify-multiplex-client
+	mkdir -p @sysconfdir@/notify-multiplexer
 
 uninstall :
 	#So we don't actually remove the python egg.  Eggs lack a good way to do

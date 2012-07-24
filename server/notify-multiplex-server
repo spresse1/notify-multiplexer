@@ -17,7 +17,7 @@ depend() {
 start() {
 	ebegin "Starting notify-multiplex-server"
 	start-stop-daemon -b -m --pidfile ${prefix}/var/notify-multiplex-server.pid \
-		-- ${exec_prefix}/sbin/notify-multiplexd \
+		-- ${exec_prefix}/sbin/notify-multiplex-server \
 		${prefix}/etc/notify-multiplexer/notify-multiplexer.conf
 	eend $? "Failed to start notify-multiplex-server"
 }
