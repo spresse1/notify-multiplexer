@@ -209,7 +209,8 @@ the cacart option in %s" % (self.conffile))
             pingwait=False
             self.connect()
             while True:
-                reads = select.select([self.inSecSock], [],[], self.timeout)[0]
+                #print(dir(self.inSecSock))
+                reads = select.select([self.sock], [],[], self.timeout)[0]
                 logging.debug("select got something, or timed out")
                 if len(reads)>0:
                     logging.debug("got something")
