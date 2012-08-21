@@ -185,8 +185,8 @@ the cacart option in %s" % (self.conffile))
             return context
         
         def connect(self):
-            inSecSock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            self.sock = self.context.wrap_socket(inSecSock)
+            self.inSecSock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            self.sock = self.context.wrap_socket(self.inSecSock)
             self.bufferedSocket = NotifyMultiplexReciever.SingleMessageSocketWrapper(self.sock)
             logging.debug("connecting...")
             try:
@@ -209,7 +209,7 @@ the cacart option in %s" % (self.conffile))
             pingwait=False
             self.connect()
             while True:
-                reads = select.select([self.sock], [],[], self.timeout)[0]
+                reads = select.select([self.inSecSock], [],[], self.timeout)[0]
                 logging.debug("select got something, or timed out")
                 if len(reads)>0:
                     logging.debug("got something")
