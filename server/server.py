@@ -188,11 +188,12 @@ def fetchConfig(config,section,name, default=None):
 
 parser = argparse.ArgumentParser(description='Server for notify-multiplexer')
 parser.add_argument('conffile', metavar='ConfFile', type=str, nargs=1,
-                    default="/etc/notify-multiplexer/notify-multiplexer.conf",)
+                    default="/etc/notify-multiplexer/notify-multiplexer.conf",
+                    required=False)
 parser.add_argument('--debug',
                     choices=["none","debug","info","warning","critical"],
-                    type=str, default="none")
-parser.add_argument('--logfile', type=str)
+                    type=str, default="none", required=False)
+parser.add_argument('--logfile', type=str, required=False)
 parser.parse_args()
 
 numeric_level = getattr(logging, loglevel.upper(), None)
