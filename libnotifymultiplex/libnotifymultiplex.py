@@ -196,7 +196,7 @@ the cacart option in %s" % (self.conffile))
                 self.sock.sendall(bytes("UID:%d\0\0" % (self.uid), 'UTF-8'))
                 logging.debug("Sent UID (double-delimited)" + str(self.uid))
                 self.connected = True
-                logging.debug("connected")
+                logging.warning("connected")
             except socket.error:
                 logging.warn("Failed to (re)connect!")
                 sleep(self.timeout)
