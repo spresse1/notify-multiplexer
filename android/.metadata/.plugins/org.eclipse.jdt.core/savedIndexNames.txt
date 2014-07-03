@@ -1,7 +1,0 @@
-INDEX VERSION 1.126+/Volumes/Documents/steve/notify-multiplexer/android/.metadata/.plugins/org.eclipse.jdt.core
-1878786783.index
-2459718607.index
-1513484597.index
-4200656906.index
-543692714.index
-115120421.index
