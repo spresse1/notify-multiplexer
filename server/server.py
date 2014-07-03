@@ -188,17 +188,16 @@ def fetchConfig(config,section,name, default=None):
 
 parser = argparse.ArgumentParser(description='Server for notify-multiplexer')
 parser.add_argument('conffile', metavar='ConfFile', type=str, nargs=1,
-                    default="/etc/notify-multiplexer/notify-multiplexer.conf",
-                    required=False)
+                    default="/etc/notify-multiplexer/notify-multiplexer.conf")
 parser.add_argument('--debug',
-                    choices=["none","debug","info","warning","critical"],
-                    type=str, default="none", required=False)
+                    choices=["debug","info","warning","critical"],
+                    type=str, default="warning", required=False)
 parser.add_argument('--logfile', type=str, required=False)
-parser.parse_args()
+parser=parser.parse_args()
 
-numeric_level = getattr(logging, loglevel.upper(), None)
+numeric_level = getattr(logging, parser.debug.upper(), None)
 if not isinstance(numeric_level, int):
-    raise ValueError('Invalid log level: %s' % loglevel)
+    raise ValueError('Invalid log level: %s' % parser.debug)
 if (parser.logfile is not None):
     logging.basicConfig(level=numeric_level, filename=parser.logfile)
 else:
@@ -206,11 +205,11 @@ else:
 
 #lets deal with config files
 config = configparser.SafeConfigParser()
-logging.info("using config file %s" % (parser.conf))
+logging.info("using config file %s" % (parser.conffile))
 try:
-    config.read(parser.conf)
+    config.read(parser.conffile)
 except IOError as e:
-    logging.fatal("Issues loading config file: " + parser.conf + ": " + repr(e.strerror) +
+    logging.fatal("Issues loading config file: " + parser.conffile + ": " + repr(e.strerror) +
           ", bailing.")
     #e.printStackTrace()
     exit(1)
