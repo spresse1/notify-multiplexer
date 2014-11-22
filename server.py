@@ -22,7 +22,7 @@ class Server():
 			self.sourcemods.append(iclass)
 			iclass.start()
 		
-		self.sinkstr=['BaseSink']
+		self.sinkstr=['BaseSink', 'HTTPSSink']
 		self.sinkmods = []
 		
 		for mod in self.sinkstr:

@@ -6,7 +6,7 @@ class ConnectionHandler(threading.Thread):
 		super(ConnectionHandler, self).__init__()
 		self.socket = socket
 		self.logger = logging.getLogger(__name__)
-		self.logger.setLevel(logging.DEBUG)
+		#self.logger.setLevel(logging.DEBUG)
 		self.server = server
 		self.daemon=True
 		
@@ -27,7 +27,10 @@ class ConnectionHandler(threading.Thread):
 			packet += recvd
 			self.logger.debug("Packet: %s" % packet)
 			while len(packet)>0:
+				self.logger.debug("Packet: %s" % packet)
 				length = int(packet.split("\n", 1)[0][7:].strip()) #from 8 to \n
+				if not '\n' in packet:
+					break
 				packet = packet.split('\n',1)[1] # cut off length term
 				self.logger.debug("Got message of length %d" % length)
 				if length > len(packet):

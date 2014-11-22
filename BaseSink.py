@@ -6,6 +6,8 @@ class BaseSink(threading.Thread):
 	def __init__(self):
 		super(BaseSink, self).__init__()
 		self._initiated=True
+		self.name=__name__
+		self.daemon=True
 
 	def _send(self,category, tags):
 		if _initiated == False:
