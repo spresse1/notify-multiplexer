@@ -3,7 +3,7 @@ CXXFlLAGS=${CFLAGS}
 
 SOURCES := $(wildcard *.c)
 INCLUDE := $(wildcard *.h)
-OBJECTS := message.o unixDomainInput.o logging.o
+OBJECTS := message.o unixDomain.o logging.o
 
 all: server client
 
