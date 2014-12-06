@@ -13,7 +13,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
-#include "Message.h"
+#include "message.h"
 
 /*
 Calculates the correct size for the buffer to pass to pack_message

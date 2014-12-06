@@ -11,7 +11,7 @@
 #include <sys/un.h>
 #include <string.h>
 #include <errno.h>
-#include "Message.h"
+#include "message.h"
 #include "logging.h"
 
 int main(int argc, char *argv[]) {
