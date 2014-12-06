@@ -19,6 +19,9 @@
 #define LOG_ERROR		4
 #define	LOG_CRITICAL	5
 
+#define LOG(level, ...)		log_msg(__FILE__,__func__, __LINE__, level, \
+								__VA_ARGS__)
+
 void handle_error(const char *file, const char *func, int line, int status);
 int log_msg(const char *file, const char *func, int line, int level, 
 	const char *format, ...); 

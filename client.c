@@ -22,16 +22,14 @@ int main(int argc, char *argv[]) {
 	size_t msglen=0;
 	
 	int sockd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
-	if (sockd==-1) log_msg(__FILE__,__func__, __LINE__,LOG_CRITICAL,
-		"Open socket failed: %s", strerror(errno));
+	if (sockd==-1) LOG(LOG_CRITICAL, "Open socket failed: %s", strerror(errno));
 	struct sockaddr_un addr;
 	addr.sun_family=AF_UNIX;
 	strncpy(addr.sun_path,"./notify-multiplexer.sock",107);
 	addr.sun_path[107]='\0';
 	
 	if (connect(sockd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un))) {
-		log_msg(__FILE__,__func__, __LINE__,LOG_CRITICAL,"connect failed: %s",
-			strerror(errno));
+		LOG(LOG_CRITICAL,"connect failed: %s", strerror(errno));
 	}	
 	
 	for (;;) {
@@ -47,12 +45,10 @@ int main(int argc, char *argv[]) {
 		void *buf = calloc(1,1);
 	
 		int length = pack_message(buf, &smessage);
-		log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG,"Msg length is: %i",
-			length);
+		LOG(LOG_DEBUG,"Msg length is: %i", length);
 		
 		if (!send(sockd, buf, length, 0)) {
-			log_msg(__FILE__,__func__, __LINE__,LOG_CRITICAL,"Send failed: %s",
-				strerror(errno));
+			LOG(LOG_CRITICAL,"Send failed: %s", strerror(errno));
 		}
 		
 		free(buf);

@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include <stdarg.h> // For logging
 #include "logging.h"
-#include "unixDomainInput.h"
+#include "unixDomain.h"
 #include "message.h"
 
 #define DEFAULT_SERVER_SOCK	"./notify-multiplexer.sock"
@@ -52,9 +52,9 @@ int main(int argc, char* argv[]) {
 		//actually do the select
 		//TODO: change this to pselect with signals, when we start to deal with
 		// signals
-		log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG,"About to select...");
+		LOG(LOG_DEBUG,"About to select...");
 		select(maxfd, &readablefds, &writeablefds, &exceptedfds, NULL);
-		log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG, "Done select");
+		LOG(LOG_DEBUG, "Done select");
 		
 		// Now go through and look at the available fds to see what needs doing
 		for (int i=0; i<maxfd; i++) {
@@ -65,10 +65,9 @@ int main(int argc, char* argv[]) {
 						FD_SET(newfd,&readfds);
 						FD_SET(newfd,&exceptfds);
 						if (newfd>=maxfd) maxfd=newfd+1;
-						log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG,
-							"Handle %i added to select.",newfd);
+						LOG(LOG_DEBUG,"Handle %i added to select.",newfd);
 					} else {
-						log_msg(__FILE__,__func__, __LINE__,LOG_WARNING,
+						LOG(LOG_WARNING, 
 							"Got bad handle back form unixHandleAccept()");
 					}
 				} else {
@@ -81,12 +80,12 @@ int main(int argc, char* argv[]) {
 					if (msgsize==-1) {
 						if (errno==EAGAIN || errno==EWOULDBLOCK) {
 							//log information that this isn't working right
-							log_msg(__FILE__, __func__, __LINE__, LOG_NOTICE,
+							LOG(LOG_NOTICE,
 								"Socket %d misbehaving (would block); terminating: %s", 
 								i,strerror(errno));
 						} else {
 							// its a real error; different message, level
-							log_msg(__FILE__, __func__, __LINE__, LOG_WARNING,
+							LOG(LOG_WARNING,
 								"Socket %d has critical error; terminating (%s)",
 								i, strerror(errno));
 						}
@@ -106,12 +105,12 @@ int main(int argc, char* argv[]) {
 					if (msgsize==-1) {
 						if (errno==EAGAIN || errno==EWOULDBLOCK) {
 							//log information that this isn't working right
-							log_msg(__FILE__, __func__, __LINE__, LOG_NOTICE,
+							LOG(LOG_NOTICE,
 								"Socket %d misbehaving (would block); terminating: %s", 
 								i,strerror(errno));
 						} else {
 							// its a real error; different message, level
-							log_msg(__FILE__, __func__, __LINE__, LOG_WARNING,
+							LOG(LOG_WARNING,
 								"Socket %d has critical error; terminating (%s)",
 								i, strerror(errno));
 						}

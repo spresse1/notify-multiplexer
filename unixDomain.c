@@ -25,8 +25,7 @@ Positive: socket file descriptor
 */
 int createUnixSocket(char name[]) {
 	int sockd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
-	log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG, 
-		"Created socket, id %i", sockd);
+	LOG(LOG_DEBUG, "Created socket, id %i", sockd);
 	if (sockd==-1) {
 		handle_error(__FILE__, __func__, __LINE__,1);
 	}
@@ -52,13 +51,13 @@ int createUnixSocket(char name[]) {
 	if (-1==bind(sockd, (struct sockaddr*)&addr, sizeof(addr))) {
 		handle_error(__FILE__, __func__, __LINE__,1);
 	}
-	log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG,"%i: bound to %s", sockd,
+	LOG(LOG_DEBUG,"%i: bound to %s", sockd,
 		name);
 	//start listening for connections - we'll deal with acepting later
 	if (-1==listen(sockd, SOMAXCONN)) {
 		handle_error(__FILE__, __func__, __LINE__,1);
 	}
-	log_msg(__FILE__,__func__, __LINE__,LOG_DEBUG,"%i: listening", sockd);
+	LOG(LOG_DEBUG,"%i: listening", sockd);
 	return sockd;
 }
 
@@ -72,16 +71,15 @@ int unixHandleAccept(int sockfd) {
 	socklen_t len;
 	int newSock = accept(sockfd, (struct sockaddr *)&addr, &len);
 	if (newSock!=-1) {
-		log_msg(__FILE__,__func__, __LINE__,LOG_INFO,
-			"Accepted connection as %i", newSock);
+		LOG(LOG_INFO, "Accepted connection as %i", newSock);
 	} else {
 		//error case
 		if (errno==EAGAIN || errno==EWOULDBLOCK) {
 			return 0;
 		}
 		//this is a real error, log a warning
-		log_msg(__FILE__,__func__, __LINE__, LOG_ERROR,
-			"accept() failed to open client's socket: %s", strerror(errno));
+		LOG( LOG_ERROR, "accept() failed to open client's socket: %s",
+			strerror(errno));
 		return -1;
 	}
 	return newSock;
